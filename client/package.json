@@ -2,14 +2,14 @@
   "name": "zenvik-client",
   "version": "1.0.0",
   "private": true,
-  "description": "Cross-platform Zenvik client",
+  "description": "Zenvik desktop client",
   "main": "dist/main.js",
   "scripts": {
-    "dev": "tsx src/main.ts",
-    "build": "tsc -p tsconfig.json",
-    "start": "node dist/main.js"
+    "build": "tsc -p tsconfig.json && node scripts-copy-assets.mjs",
+    "start": "electron dist/main.js",
+    "dev": "bun run build && electron dist/main.js"
   },
-  "keywords": ["zenvik", "client"],
+  "keywords": ["zenvik", "client", "electron"],
   "license": "ISC",
   "type": "module",
   "devDependencies": {

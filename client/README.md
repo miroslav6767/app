@@ -1,17 +1,37 @@
-# zenvik-client
+# Zenvik Client
 
-To install dependencies:
+Electron desktop client for Zenvik.
+
+## Run
 
 ```bash
 bun install
+bun run dev
 ```
 
-To run:
+## Backend configuration
 
-```bash
-bun run dist/main.js
-```
+By default the client connects to:
 
-This project was created using `bun init` in bun v1.3.14. [Bun](https://bun.com) is a fast all-in-one JavaScript runtime.
+- HTTP health endpoint: `http://127.0.0.1:3001`
+- WebSocket: `ws://127.0.0.1:3001`
 
-btw this is the client app if you didn't know
+Override them with `ZENVIK_BACKEND_URL` and `ZENVIK_WEBSOCKET_URL`.
+
+## WebSocket events expected by the client
+
+Client sends:
+
+- `auth:identify`
+- `conversation:list`
+- `conversation:select`
+- `conversation:create`
+- `message:send`
+
+Server can send:
+
+- `auth:user` or `auth:success`
+- `conversation:list`
+- `conversation:created`
+- `message:new`
+- `error`
