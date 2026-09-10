@@ -1,7 +1,9 @@
 {
-
   "compilerOptions": {
-    "rootDir": "./src",
+    "include": [
+    "main.ts",
+    "src/**/*.ts"
+    ],
     "outDir": "./dist",
 
     "module": "nodenext",

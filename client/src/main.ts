@@ -1,14 +1,21 @@
-import { startClient } from "./client";
-import { config } from "./core/config";
-import { installShutdownHandlers } from "./core/runtime";
+import { startClient } from "./client.js";
+import { config } from "./core/config.js";
+import { installShutdownHandlers } from "./core/runtime.js";
 
 async function main(): Promise<void> {
     console.log("Starting Zenvik client...");
+
     const server = await startClient();
 
     installShutdownHandlers(() => {
         return new Promise<void>((resolve, reject) => {
-            server.close((error) => error ? reject(error) : resolve());
+            server.close((error?: Error) => {
+                if (error) {
+                    reject(error);
+                } else {
+                    resolve();
+                }
+            });
         });
     });
 

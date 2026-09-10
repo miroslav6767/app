@@ -2,8 +2,8 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { config } from "../core/config";
-import { renderApp } from "../UI/ui";
+import { config } from "../core/config.js";
+import { renderApp } from "../UI/ui.js";
 
 const root = join(fileURLToPath(import.meta.url), "../../web");
 
@@ -66,3 +66,9 @@ export function startWebServer(): Promise<ReturnType<typeof createServer>> {
         });
     });
 }
+
+const server = createServer(
+    (req: IncomingMessage, res: ServerResponse) => void handler(req, res)
+);
+
+

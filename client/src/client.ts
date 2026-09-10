@@ -1,7 +1,7 @@
-import { config } from "./core/config";
-import { getPlatformInfo } from "./core/platform";
-import { openUrl, clientUrl } from "./core/runtime";
-import { startWebServer } from "./web/web";
+import { config } from "./core/config.js";
+import { getPlatformInfo } from "./core/platform.js";
+import { openUrl, clientUrl } from "./core/runtime.js";
+import { startWebServer } from "./web/web.js";
 
 export async function startClient(): Promise<ReturnType<typeof startWebServer> extends Promise<infer T> ? T : never> {
     const server = await startWebServer();

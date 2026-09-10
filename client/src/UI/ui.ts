@@ -1,4 +1,4 @@
-import { renderButtons } from "./buttons";
+import { renderButtons } from "./buttons.js";
 
 export function renderApp(): string {
     return `
