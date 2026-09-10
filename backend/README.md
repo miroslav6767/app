@@ -1,55 +1,59 @@
-# Zenvik
+# Zenvik Backend
 
-yoo, i made some basic shit.
+Real HTTP + WebSocket backend for the Zenvik desktop and web clients.
 
-Zenvik is still very early, so don't expect some crazy finished project yet. we're building it piece by piece.
+## Run
 
-## What's where?
+```powershell
+bun install
+bun run dev
+```
 
-### `src/api/`
+The server listens on `http://127.0.0.1:3001` by default.
 
-This is basically the bridge for the web/API side of things.
+- `GET /`
+- `GET /health`
+- `GET /api`
+- `GET /api/config`
+- `GET /api/conversations`
 
-Right now it's pretty simple. we'll add more stuff here later.
+WebSocket endpoint:
 
-### `src/main.ts`
+```text
+ws://127.0.0.1:3001
+```
 
-The main entry point.
+The current client protocol is supported:
 
-This is where everything gets started.
+- `auth:identify`
+- `conversation:list`
+- `conversation:select`
+- `conversation:create`
+- `message:send`
 
-### `src/router.ts`
+Server events:
 
-The main router.
-It handles the application's routes so everything doesn't turn into one giant mess.
+- `auth:user`
+- `conversation:list`
+- `conversation:created`
+- `message:new`
+- `error`
 
-### `src/server/`
+## PostgreSQL
 
-This is the core server stuff.
+PostgreSQL is optional.
 
-* `server.ts` → the actual server
-* `router.ts` → routing for the core server
-* `client.ts` → client-related stuff (we'll actually use this more later)
+Without `DATABASE_URL`, data lives in memory and resets when the server stops.
 
-## Status
+With PostgreSQL:
 
-Very early development.
+1. Create a database named `zenvik`.
+2. Run `database/schema.sql`.
+3. Set `DATABASE_URL`.
+4. Start Zenvik.
 
-Things will probably break.
+The server loads existing conversations/messages and persists new data.
 
-Things will probably get rewritten.
+## Notes
 
-That's normal.
-
-## Contributing
-
-If you're working on this project, feel free to edit pretty much anything.
-
-Just don't randomly nuke the whole project
-
-good luck with reading my code!
-
-#funny #cool
-
-i vibecode the database...
-* `data.sql`
+The client currently has no login screen, so `auth:identify` creates/reuses a guest identity based on a cookie-like connection token. This is intentionally not an authentication system yet.

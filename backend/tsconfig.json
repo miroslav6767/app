@@ -1,28 +1,15 @@
 {
   "compilerOptions": {
-    "include": [
-    "main.ts",
-    "src/**/*.ts"
-    ],
-    "outDir": "./dist",
-
-    "module": "nodenext",
-    "target": "esnext",
-    "types": ["node"],
-
-    "sourceMap": true,
-    "declaration": true,
-    "declarationMap": true,
-
+    "target": "ESNext",
+    "module": "Preserve",
+    "moduleResolution": "Bundler",
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "strict": true,
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": true,
-
-    "strict": true,
-    "verbatimModuleSyntax": true,
-    "isolatedModules": true,
-    "noUncheckedSideEffectImports": true,
-    "moduleDetection": "force",
-    "skipLibCheck": true
-
-  }
+    "skipLibCheck": true,
+    "types": ["bun", "node"]
+  },
+  "include": ["src/**/*.ts"]
 }

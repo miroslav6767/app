@@ -1,5 +1,12 @@
 declare global {
     interface Window {
+        __ZENVIK_CONFIG__?: {
+            backendUrl: string;
+            websocketUrl: string;
+        };
+    }
+
+    interface Window {
         zenvik: {
             platform(): Promise<{
                 platform: string;

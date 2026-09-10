@@ -7,9 +7,16 @@
   "scripts": {
     "build": "tsc -p tsconfig.json && node scripts-copy-assets.mjs",
     "start": "electron dist/main.js",
-    "dev": "bun run build && electron dist/main.js"
+    "dev": "bun run build && electron dist/main.js",
+    "web:build": "bun run build",
+    "web": "bun run web:build && node scripts-web-server.mjs",
+    "dev:web": "bun run web"
   },
-  "keywords": ["zenvik", "client", "electron"],
+  "keywords": [
+    "zenvik",
+    "client",
+    "electron"
+  ],
   "license": "ISC",
   "type": "module",
   "devDependencies": {
