@@ -57,3 +57,5 @@ The server loads existing conversations/messages and persists new data.
 ## Notes
 
 The client currently has no login screen, so `auth:identify` creates/reuses a guest identity based on a cookie-like connection token. This is intentionally not an authentication system yet.
+
+## who reads this is gey

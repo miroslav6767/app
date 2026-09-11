@@ -1,222 +1,150 @@
-import {
-    client,
-    type ZenvikClientState,
-} from "../client.js";
+import { client, type ZenvikClientState } from "../client.js";
 
-type Page = "chat" | "settings";
+type Page = "messages" | "settings";
 
 const root = document.querySelector<HTMLDivElement>("#app");
+if (!root) throw new Error("Zenvik: #app was not found.");
 
-if (!root) {
-    throw new Error("Zenvik: #app was not found.");
-}
-
-let activePage: Page = "chat";
+let page: Page = "messages";
+let searchQuery = "";
 let toastTimer: number | undefined;
-let lastError: string | null = null;
-let previousConnection: ZenvikClientState["connection"] = "disconnected";
-let previousMessageIds = new Set<string>();
+let lastRenderedError: string | null = null;
+let previousMessages = new Map<string, number>();
+
+const icon = (name: string): string => {
+    const icons: Record<string, string> = {
+        messages: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11.5a7.5 7.5 0 0 1-8 7.5 8.9 8.9 0 0 1-3.8-.8L4 20l1.4-3.3A7.2 7.2 0 0 1 4 12c0-4.1 3.6-7.5 8-7.5s8 3.1 8 7Z"/><path d="M8 12h.01M12 12h.01M16 12h.01"/></svg>`,
+        settings: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4Z"/><path d="m19.4 15 .1.1a2 2 0 1 1-2.8 2.8l-.1-.1a2 2 0 0 0-3.4 1.4v.2a2 2 0 1 1-4 0v-.2a2 2 0 0 0-3.4-1.4l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A2 2 0 0 0 1.6 11H1.5a2 2 0 1 1 0-4h.1a2 2 0 0 0 1.4-3.4l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A2 2 0 0 0 9.2 2.2V2a2 2 0 1 1 4 0v.2a2 2 0 0 0 3.4 1.4l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1A2 2 0 0 0 20.8 7h.2a2 2 0 1 1 0 4h-.2a2 2 0 0 0-1.4 4Z"/></svg>`,
+        plus: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>`,
+        send: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m21 3-7.3 18-3.9-8.1L2 9l19-6Z"/><path d="M10 12 21 3"/></svg>`,
+        plug: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 7V3M15 7V3M7 7h10v4a5 5 0 0 1-10 0V7ZM12 16v5"/></svg>`,
+        search: `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 5 5"/></svg>`,
+        copy: `<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="11" height="11" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>`,
+        refresh: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 0 0-14.9-3M4 5v4h4M4 13a8 8 0 0 0 14.9 3M20 19v-4h-4"/></svg>`,
+        logout: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h4M14 8l4 4-4 4M18 12H9"/></svg>`,
+        close: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>`,
+        check: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg>`,
+        chevron: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>`,
+        shield: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 20 6v5c0 5.1-3.4 8.7-8 10-4.6-1.3-8-4.9-8-10V6l8-3Z"/><path d="m8.5 12 2.3 2.3 4.7-4.8"/></svg>`,
+    };
+    return icons[name] ?? "";
+};
 
 root.innerHTML = `
 <div class="app-shell">
     <aside class="sidebar">
         <div class="brand">
-            <div class="brand-icon">Z</div>
-            <div class="brand-copy">
-                <strong>Zenvik</strong>
-                <span>Private messaging</span>
-            </div>
+            <div class="brand-mark">Z</div>
+            <div class="brand-copy"><strong>Zenvik</strong><span>Private messaging</span></div>
+        </div>
+
+        <div class="sidebar-search">
+            <span class="search-icon">${icon("search")}</span>
+            <input id="conversation-search" type="search" placeholder="Search conversations" autocomplete="off" aria-label="Search conversations">
+            <kbd>⌘ K</kbd>
         </div>
 
         <nav class="main-nav" aria-label="Main navigation">
-            <button class="nav-item active" data-page="chat" type="button">
-                <span class="nav-icon">◫</span>
-                <span>Messages</span>
+            <button class="nav-item active" data-page="messages" type="button">
+                <span class="nav-icon">${icon("messages")}</span><span>Messages</span>
             </button>
             <button class="nav-item" data-page="settings" type="button">
-                <span class="nav-icon">⚙</span>
-                <span>Settings</span>
+                <span class="nav-icon">${icon("settings")}</span><span>Settings</span>
             </button>
         </nav>
 
-        <div class="sidebar-divider"></div>
+        <div class="section-head">
+            <span>Conversations</span>
+            <button id="new-conversation" class="square-button" type="button" aria-label="New conversation" title="New conversation">${icon("plus")}</button>
+        </div>
 
-        <section class="conversation-panel">
-            <div class="section-title">
-                <span>Conversations</span>
-                <button
-                    id="new-conversation"
-                    class="add-button"
-                    type="button"
-                    aria-label="New conversation"
-                    title="New conversation"
-                >+</button>
-            </div>
+        <div id="conversation-list" class="conversation-list"></div>
 
-            <div id="conversation-list" class="conversation-list">
-                <div class="list-placeholder">Loading conversations…</div>
+        <div class="sidebar-footer">
+            <div class="profile-card">
+                <div id="avatar" class="avatar">?</div>
+                <div class="profile-copy">
+                    <strong id="username">Not connected</strong>
+                    <span><i id="connection-dot" class="status-dot disconnected"></i><span id="connection-label">Offline</span></span>
+                </div>
+                <button id="disconnect" class="profile-action" type="button" title="Disconnect" aria-label="Disconnect">${icon("logout")}</button>
             </div>
-        </section>
-
-        <div class="account-card">
-            <div id="avatar" class="avatar">?</div>
-            <div class="account-details">
-                <strong id="username">Not connected</strong>
-                <span>
-                    <i id="connection-dot" class="status-dot disconnected"></i>
-                    <span id="connection-label">Offline</span>
-                </span>
-            </div>
-            <button
-                id="disconnect"
-                class="account-action"
-                type="button"
-                title="Disconnect"
-                aria-label="Disconnect"
-            >↪</button>
         </div>
     </aside>
 
     <main class="main-content">
-        <section id="chat-page" class="page">
+        <section id="messages-page" class="page">
             <header class="topbar">
-                <div class="conversation-heading">
-                    <div id="conversation-symbol" class="conversation-symbol">#</div>
-                    <div>
+                <div class="heading-group">
+                    <div id="conversation-symbol" class="channel-icon">Z</div>
+                    <div class="heading-copy">
                         <h1 id="conversation-title">Messages</h1>
-                        <span id="conversation-status">Select a conversation</span>
+                        <span id="conversation-status">Choose a conversation to begin</span>
                     </div>
                 </div>
-
-                <div class="connection-pill">
-                    <i id="connection-pill-dot" class="status-dot disconnected"></i>
-                    <span id="connection-text">Disconnected</span>
+                <div class="topbar-actions">
+                    <div id="connection-pill" class="connection-pill disconnected"><i id="connection-pill-dot" class="status-dot disconnected"></i><span id="connection-text">Offline</span></div>
                 </div>
             </header>
 
             <div id="messages" class="messages">
-                <div class="welcome">
-                    <div class="welcome-logo">Z</div>
-                    <h2>Welcome to Zenvik</h2>
-                    <p>Pick a conversation from the sidebar, or create a new one.</p>
-                    <button id="welcome-new" class="primary small" type="button">
-                        New conversation
-                    </button>
+                <div class="welcome-state">
+                    <div class="welcome-mark">Z</div>
+                    <span class="eyebrow">Welcome to Zenvik</span>
+                    <h2>Private conversations,<br>without the clutter.</h2>
+                    <p>Select a conversation from the sidebar or create a new one to get started.</p>
+                    <button id="welcome-new" class="button primary" type="button">${icon("plus")}<span>New conversation</span></button>
                 </div>
             </div>
 
             <form id="composer" class="composer">
-                <div class="composer-box">
-                    <textarea
-                        id="message-input"
-                        rows="1"
-                        maxlength="4000"
-                        autocomplete="off"
-                        placeholder="Connect to Zenvik to send a message…"
-                        aria-label="Message"
-                    ></textarea>
-                    <div class="composer-footer">
-                        <span id="composer-hint">Shift + Enter for a new line</span>
-                        <span id="character-count">0 / 4000</span>
-                    </div>
+                <div class="composer-shell">
+                    <textarea id="message-input" rows="1" maxlength="4000" placeholder="Select a conversation to start typing…" autocomplete="off" aria-label="Message"></textarea>
+                    <div class="composer-meta"><span id="composer-hint">Enter to send · Shift + Enter for a new line</span><span id="character-count">0 / 4000</span></div>
                 </div>
-                <button
-                    id="send-button"
-                    class="send-button"
-                    type="submit"
-                    disabled
-                    aria-label="Send message"
-                >
-                    <span>Send</span>
-                    <span class="send-arrow">↗</span>
-                </button>
+                <button id="send-button" class="send-button" type="submit" disabled aria-label="Send message" title="Send message">${icon("send")}</button>
             </form>
         </section>
 
         <section id="settings-page" class="page hidden">
-            <header class="topbar settings-topbar">
-                <div>
-                    <h1>Settings</h1>
-                    <span>Control how Zenvik behaves on this device.</span>
-                </div>
+            <header class="topbar">
+                <div class="heading-copy"><h1>Settings</h1><span>Preferences for this Zenvik client.</span></div>
             </header>
 
-            <div class="settings-wrap">
-                <section class="settings-section">
-                    <div class="settings-section-heading">
-                        <h2>Appearance</h2>
-                        <p>Make the client feel right for you.</p>
-                    </div>
-
+            <div class="settings-content">
+                <section class="settings-group">
+                    <div class="settings-heading"><span>Appearance</span><small>Make Zenvik feel like yours.</small></div>
                     <div class="settings-card">
                         <label class="setting-row">
-                            <span class="setting-copy">
-                                <strong>Theme</strong>
-                                <small>Switch between the dark and light interface.</small>
-                            </span>
-                            <select id="theme-setting">
-                                <option value="dark">Dark</option>
-                                <option value="light">Light</option>
-                            </select>
+                            <span><strong>Theme</strong><small>Choose the interface appearance.</small></span>
+                            <select id="theme-setting"><option value="dark">Dark</option><option value="light">Light</option></select>
                         </label>
                     </div>
                 </section>
 
-                <section class="settings-section">
-                    <div class="settings-section-heading">
-                        <h2>Messaging</h2>
-                        <p>Choose how the composer behaves.</p>
-                    </div>
-
+                <section class="settings-group">
+                    <div class="settings-heading"><span>Messaging</span><small>Control the composer and notifications.</small></div>
                     <div class="settings-card">
                         <label class="setting-row">
-                            <span class="setting-copy">
-                                <strong>Enter sends messages</strong>
-                                <small>Press Enter to send. Shift + Enter creates a new line.</small>
-                            </span>
+                            <span><strong>Enter sends messages</strong><small>Press Enter to send. Shift + Enter adds a new line.</small></span>
                             <input id="enter-setting" class="toggle" type="checkbox">
                         </label>
-
                         <label class="setting-row">
-                            <span class="setting-copy">
-                                <strong>Notifications</strong>
-                                <small>Show a desktop notification when a new message arrives.</small>
-                            </span>
+                            <span><strong>Desktop notifications</strong><small>Notify you when a new message arrives in another conversation.</small></span>
                             <input id="notification-setting" class="toggle" type="checkbox">
                         </label>
                     </div>
                 </section>
 
-                <section class="settings-section">
-                    <div class="settings-section-heading">
-                        <h2>Connection</h2>
-                        <p>Current server configuration and connection controls.</p>
-                    </div>
-
+                <section class="settings-group">
+                    <div class="settings-heading"><span>Server</span><small>Connection details for this client.</small></div>
                     <div class="settings-card server-card">
-                        <div class="server-info">
-                            <span class="server-status-line">
-                                <i id="settings-status-dot" class="status-dot disconnected"></i>
-                                <strong id="settings-connection">Disconnected</strong>
-                            </span>
-                            <code id="server-url">Loading…</code>
-                        </div>
-
-                        <div class="server-actions">
-                            <button id="check-server" class="secondary" type="button">
-                                Check server
-                            </button>
-                            <button id="reconnect" class="primary" type="button">
-                                Reconnect
-                            </button>
-                        </div>
+                        <div class="server-identity"><div class="server-icon">${icon("shield")}</div><div><strong id="settings-connection">Offline</strong><code id="server-url">Loading…</code></div></div>
+                        <div class="server-actions"><button id="copy-server" class="button secondary" type="button">${icon("copy")}<span>Copy address</span></button><button id="check-server" class="button secondary" type="button">${icon("refresh")}<span>Check server</span></button><button id="reconnect" class="button primary" type="button">${icon("plug")}<span>Reconnect</span></button></div>
                     </div>
                 </section>
 
-                <div class="about-line">
-                    <span>Zenvik Desktop & Web</span>
-                    <span id="runtime-info">Connecting to runtime…</span>
-                </div>
+                <div class="client-footer"><span>Zenvik Client</span><span id="runtime-info">Loading runtime…</span></div>
             </div>
         </section>
     </main>
@@ -227,300 +155,137 @@ root.innerHTML = `
 <div id="modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="modal-title">
     <div class="modal-backdrop"></div>
     <div class="modal-card">
+        <button id="close-modal" class="modal-close" type="button" aria-label="Close">${icon("close")}</button>
         <div class="modal-icon">#</div>
-        <h2 id="modal-title">New conversation</h2>
-        <p>Create a conversation on the Zenvik server.</p>
-
-        <label class="modal-label" for="conversation-name">Name</label>
-        <input
-            id="conversation-name"
-            maxlength="80"
-            autocomplete="off"
-            placeholder="e.g. General"
-        >
-
-        <div class="modal-actions">
-            <button id="cancel-modal" class="secondary" type="button">Cancel</button>
-            <button id="create-modal" class="primary" type="button">Create</button>
-        </div>
+        <span class="eyebrow">Conversations</span>
+        <h2 id="modal-title">Create a conversation</h2>
+        <p>Give your new conversation a short, recognizable name.</p>
+        <label class="field-label" for="conversation-name">Name</label>
+        <input id="conversation-name" maxlength="80" autocomplete="off" placeholder="e.g. General, Project, Friends">
+        <div class="modal-actions"><button id="cancel-modal" class="button secondary" type="button">Cancel</button><button id="create-modal" class="button primary" type="button">${icon("plus")}<span>Create conversation</span></button></div>
     </div>
 </div>
 `;
 
 function $<T extends Element>(selector: string): T {
-    const element = document.querySelector(selector);
-
-    if (!element) {
-        throw new Error(`Zenvik: missing element ${selector}`);
-    }
-
-    return element as T;
+    const element = document.querySelector<T>(selector);
+    if (!element) throw new Error(`Zenvik: missing ${selector}`);
+    return element;
 }
 
 const el = {
-    conversationList: $<HTMLDivElement>("#conversation-list"),
-    messages: $<HTMLDivElement>("#messages"),
-    input: $<HTMLTextAreaElement>("#message-input"),
-    composer: $<HTMLFormElement>("#composer"),
-    sendButton: $<HTMLButtonElement>("#send-button"),
-    characterCount: $<HTMLSpanElement>("#character-count"),
-    composerHint: $<HTMLSpanElement>("#composer-hint"),
-
-    avatar: $<HTMLDivElement>("#avatar"),
-    username: $<HTMLElement>("#username"),
-    connectionDot: $<HTMLElement>("#connection-dot"),
-    connectionLabel: $<HTMLSpanElement>("#connection-label"),
-    connectionPillDot: $<HTMLElement>("#connection-pill-dot"),
-    connectionText: $<HTMLSpanElement>("#connection-text"),
-
-    conversationSymbol: $<HTMLDivElement>("#conversation-symbol"),
-    conversationTitle: $<HTMLHeadingElement>("#conversation-title"),
-    conversationStatus: $<HTMLSpanElement>("#conversation-status"),
-
-    chatPage: $<HTMLElement>("#chat-page"),
-    settingsPage: $<HTMLElement>("#settings-page"),
-
-    themeSetting: $<HTMLSelectElement>("#theme-setting"),
-    enterSetting: $<HTMLInputElement>("#enter-setting"),
-    notificationSetting: $<HTMLInputElement>("#notification-setting"),
-
-    settingsStatusDot: $<HTMLElement>("#settings-status-dot"),
-    settingsConnection: $<HTMLElement>("#settings-connection"),
-    serverUrl: $<HTMLElement>("#server-url"),
-    runtimeInfo: $<HTMLElement>("#runtime-info"),
-
-    modal: $<HTMLDivElement>("#modal"),
-    conversationName: $<HTMLInputElement>("#conversation-name"),
-    toast: $<HTMLDivElement>("#toast"),
+    list: $<HTMLDivElement>("#conversation-list"), messages: $<HTMLDivElement>("#messages"), input: $<HTMLTextAreaElement>("#message-input"), composer: $<HTMLFormElement>("#composer"), send: $<HTMLButtonElement>("#send-button"),
+    search: $<HTMLInputElement>("#conversation-search"), username: $<HTMLElement>("#username"), avatar: $<HTMLDivElement>("#avatar"), connectionDot: $<HTMLElement>("#connection-dot"), connectionPillDot: $<HTMLElement>("#connection-pill-dot"), connectionPill: $<HTMLDivElement>("#connection-pill"), connectionLabel: $<HTMLSpanElement>("#connection-label"), connectionText: $<HTMLSpanElement>("#connection-text"), settingsConnection: $<HTMLSpanElement>("#settings-connection"),
+    title: $<HTMLHeadingElement>("#conversation-title"), status: $<HTMLSpanElement>("#conversation-status"), symbol: $<HTMLDivElement>("#conversation-symbol"), messagesPage: $<HTMLElement>("#messages-page"), settingsPage: $<HTMLElement>("#settings-page"),
+    theme: $<HTMLSelectElement>("#theme-setting"), enter: $<HTMLInputElement>("#enter-setting"), notifications: $<HTMLInputElement>("#notification-setting"), serverUrl: $<HTMLElement>("#server-url"), runtime: $<HTMLElement>("#runtime-info"), toast: $<HTMLDivElement>("#toast"), modal: $<HTMLDivElement>("#modal"), name: $<HTMLInputElement>("#conversation-name"), count: $<HTMLSpanElement>("#character-count"), hint: $<HTMLSpanElement>("#composer-hint"),
 };
 
 function escapeHtml(value: string): string {
-    return value.replace(/[&<>'"]/g, character => ({
-        "&": "&amp;",
-        "<": "&lt;",
-        ">": "&gt;",
-        "'": "&#39;",
-        '"': "&quot;",
-    }[character] ?? character));
+    return value.replace(/[&<>'"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" })[c] ?? c);
 }
 
 function formatTime(timestamp: number): string {
     const date = new Date(timestamp);
-
-    if (Number.isNaN(date.getTime())) {
-        return "";
-    }
-
+    if (Number.isNaN(date.getTime())) return "";
     const now = new Date();
-    const sameDay =
-        date.getFullYear() === now.getFullYear() &&
-        date.getMonth() === now.getMonth() &&
-        date.getDate() === now.getDate();
-
-    if (sameDay) {
-        return date.toLocaleTimeString([], {
-            hour: "2-digit",
-            minute: "2-digit",
-        });
-    }
-
-    return date.toLocaleDateString([], {
-        month: "short",
-        day: "numeric",
-    });
+    const sameDay = date.toDateString() === now.toDateString();
+    return sameDay ? date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : date.toLocaleDateString([], { month: "short", day: "numeric" });
 }
 
 function showToast(message: string): void {
     el.toast.textContent = message;
     el.toast.classList.add("visible");
-
-    if (toastTimer !== undefined) {
-        window.clearTimeout(toastTimer);
-    }
-
-    toastTimer = window.setTimeout(() => {
-        el.toast.classList.remove("visible");
-        toastTimer = undefined;
-    }, 3600);
+    if (toastTimer !== undefined) window.clearTimeout(toastTimer);
+    toastTimer = window.setTimeout(() => el.toast.classList.remove("visible"), 3200);
 }
 
-function setPage(page: Page): void {
-    activePage = page;
-
-    el.chatPage.classList.toggle("hidden", page !== "chat");
-    el.settingsPage.classList.toggle("hidden", page !== "settings");
-
-    document.querySelectorAll<HTMLButtonElement>(".nav-item").forEach(button => {
-        button.classList.toggle("active", button.dataset.page === page);
-    });
-
-    if (page === "chat") {
-        requestAnimationFrame(() => {
-            el.messages.scrollTop = el.messages.scrollHeight;
-        });
-    }
+function setPage(next: Page): void {
+    page = next;
+    el.messagesPage.classList.toggle("hidden", next !== "messages");
+    el.settingsPage.classList.toggle("hidden", next !== "settings");
+    document.querySelectorAll<HTMLButtonElement>(".nav-item").forEach(button => button.classList.toggle("active", button.dataset.page === next));
+    if (next === "messages") requestAnimationFrame(() => el.messages.scrollTop = el.messages.scrollHeight);
 }
 
-function connectionLabel(state: ZenvikClientState["connection"]): string {
-    switch (state) {
-        case "connected":
-            return "Online";
-        case "connecting":
-            return "Connecting";
-        case "error":
-            return "Connection error";
-        default:
-            return "Offline";
-    }
-}
-
-function setStatusClass(element: Element, state: ZenvikClientState["connection"]): void {
-    element.className = `status-dot ${state}`;
+function connectionName(state: ZenvikClientState["connection"]): string {
+    if (state === "connected") return "Online";
+    if (state === "connecting") return "Connecting";
+    if (state === "error") return "Connection error";
+    return "Offline";
 }
 
 function renderConversationList(state: ZenvikClientState): void {
+    const query = searchQuery.trim().toLowerCase();
+    const conversations = state.conversations.filter(c => !query || c.name.toLowerCase().includes(query));
+
     if (state.connection === "connecting" && state.conversations.length === 0) {
-        el.conversationList.innerHTML = `
-            <div class="list-placeholder">
-                <span class="spinner"></span>
-                Connecting…
-            </div>
-        `;
+        el.list.innerHTML = `<div class="list-state"><span class="spinner"></span><span>Connecting…</span></div>`;
+        return;
+    }
+    if (conversations.length === 0) {
+        el.list.innerHTML = query
+            ? `<div class="list-state"><strong>No matches</strong><span>Try a different search.</span></div>`
+            : `<div class="list-state"><strong>No conversations yet</strong><span>Create one with +</span></div>`;
         return;
     }
 
-    if (state.conversations.length === 0) {
-        el.conversationList.innerHTML = `
-            <div class="list-placeholder empty-list">
-                <span>No conversations</span>
-                <small>Create one with +</small>
-            </div>
-        `;
-        return;
-    }
-
-    el.conversationList.innerHTML = state.conversations.map(conversation => {
+    el.list.innerHTML = conversations.map(conversation => {
         const unread = conversation.unread ?? 0;
         const selected = conversation.id === state.activeConversation;
-
-        return `
-            <button
-                class="conversation ${selected ? "selected" : ""}"
-                data-conversation="${escapeHtml(conversation.id)}"
-                type="button"
-            >
-                <span class="conversation-hash">#</span>
-                <span class="conversation-main">
-                    <strong>${escapeHtml(conversation.name)}</strong>
-                    ${
-                        conversation.messages.length > 0
-                            ? `<small>${escapeHtml(
-                                conversation.messages[conversation.messages.length - 1]?.content ?? "",
-                            )}</small>`
-                            : `<small>No messages yet</small>`
-                    }
-                </span>
-                ${unread > 0 ? `<span class="unread">${unread > 99 ? "99+" : unread}</span>` : ""}
-            </button>
-        `;
+        const last = conversation.messages.at(-1);
+        return `<button class="conversation ${selected ? "selected" : ""}" data-conversation="${escapeHtml(conversation.id)}" type="button">
+            <span class="conversation-icon">#</span><span class="conversation-copy"><strong>${escapeHtml(conversation.name)}</strong><small>${last ? escapeHtml(last.content) : "No messages yet"}</small></span>${unread ? `<span class="unread">${unread > 99 ? "99+" : unread}</span>` : ""}${selected ? `<span class="selected-mark">${icon("check")}</span>` : ""}
+        </button>`;
     }).join("");
 }
 
-function renderMessages(
-    conversation: ZenvikClientState["conversations"][number] | undefined,
-): void {
+function renderMessages(state: ZenvikClientState): void {
+    const conversation = state.conversations.find(c => c.id === state.activeConversation);
     if (!conversation) {
-        el.messages.innerHTML = `
-            <div class="welcome">
-                <div class="welcome-logo">Z</div>
-                <h2>Welcome to Zenvik</h2>
-                <p>Pick a conversation from the sidebar, or create a new one.</p>
-                <button id="welcome-new" class="primary small" type="button">
-                    New conversation
-                </button>
-            </div>
-        `;
+        el.messages.innerHTML = `<div class="welcome-state"><div class="welcome-mark">Z</div><span class="eyebrow">Welcome to Zenvik</span><h2>Private conversations,<br>without the clutter.</h2><p>Select a conversation from the sidebar or create a new one to get started.</p><button id="welcome-new" class="button primary" type="button">${icon("plus")}<span>New conversation</span></button></div>`;
+        return;
+    }
+    if (!conversation.messages.length) {
+        el.messages.innerHTML = `<div class="empty-channel"><div class="empty-channel-icon">#</div><span class="eyebrow">${escapeHtml(conversation.name)}</span><h2>A new conversation starts here.</h2><p>Send a message to start the conversation.</p></div>`;
         return;
     }
 
-    if (conversation.messages.length === 0) {
-        el.messages.innerHTML = `
-            <div class="conversation-empty-state">
-                <div class="empty-channel-icon">#</div>
-                <h2>${escapeHtml(conversation.name)}</h2>
-                <p>This conversation is empty. Send the first message.</p>
+    const wasNearBottom = el.messages.scrollHeight - el.messages.scrollTop - el.messages.clientHeight < 140;
+    const groups: string[] = [];
+    let lastAuthor = "";
+    let lastTime = 0;
+
+    for (const message of conversation.messages) {
+        const grouped = lastAuthor === message.author.id && message.timestamp - lastTime < 5 * 60 * 1000;
+        const own = state.user?.id === message.author.id;
+        groups.push(`<article class="message ${own ? "own" : ""} ${grouped ? "grouped" : ""}">
+            ${grouped ? `<div class="message-gutter"></div>` : `<div class="message-avatar">${escapeHtml(message.author.username[0]?.toUpperCase() ?? "?")}</div>`}
+            <div class="message-body">
+                ${grouped ? "" : `<div class="message-meta"><strong>${escapeHtml(message.author.username)}</strong><time datetime="${new Date(message.timestamp).toISOString()}">${formatTime(message.timestamp)}</time></div>`}
+                <div class="message-content">${escapeHtml(message.content).replace(/\n/g, "<br>")}</div>
             </div>
-        `;
-        return;
+        </article>`);
+        lastAuthor = message.author.id;
+        lastTime = message.timestamp;
     }
-
-    const oldHeight = el.messages.scrollHeight;
-    const wasNearBottom =
-        oldHeight - el.messages.scrollTop - el.messages.clientHeight < 120;
-
-    el.messages.innerHTML = conversation.messages.map(message => {
-        const initial = message.author.username[0]?.toUpperCase() ?? "?";
-        const own = client.getState().user?.id === message.author.id;
-
-        return `
-            <article class="message ${own ? "own" : ""}">
-                <div class="message-avatar">${escapeHtml(initial)}</div>
-                <div class="message-body">
-                    <div class="message-meta">
-                        <strong>${escapeHtml(message.author.username)}</strong>
-                        <time datetime="${new Date(message.timestamp).toISOString()}">
-                            ${formatTime(message.timestamp)}
-                        </time>
-                    </div>
-                    <div class="message-content">
-                        ${escapeHtml(message.content).replace(/\n/g, "<br>")}
-                    </div>
-                </div>
-            </article>
-        `;
-    }).join("");
-
-    if (wasNearBottom) {
-        requestAnimationFrame(() => {
-            el.messages.scrollTop = el.messages.scrollHeight;
-        });
-    }
+    el.messages.innerHTML = `<div class="message-stream">${groups.join("")}</div>`;
+    if (wasNearBottom) requestAnimationFrame(() => el.messages.scrollTop = el.messages.scrollHeight);
 }
 
 function updateComposer(state: ZenvikClientState): void {
-    const canSend =
-        state.connection === "connected" &&
-        state.activeConversation !== null;
-
-    el.sendButton.disabled = !canSend;
+    const canSend = state.connection === "connected" && state.activeConversation !== null;
     el.input.disabled = !canSend;
-
-    if (state.connection === "connected") {
-        el.input.placeholder = state.activeConversation
-            ? "Write a message…"
-            : "Select a conversation…";
-    } else if (state.connection === "connecting") {
-        el.input.placeholder = "Connecting to Zenvik…";
-    } else {
-        el.input.placeholder = "Connect to Zenvik to send a message…";
-    }
-
-    el.composerHint.textContent = state.settings.enterToSend
-        ? "Enter to send · Shift + Enter for a new line"
-        : "Enter for a new line";
-
-    el.characterCount.textContent = `${el.input.value.length} / 4000`;
+    el.send.disabled = !canSend || !el.input.value.trim();
+    el.input.placeholder = state.connection === "connected" ? (state.activeConversation ? "Write a message…" : "Select a conversation…") : state.connection === "connecting" ? "Connecting to Zenvik…" : "Connect to Zenvik to send a message…";
+    el.hint.textContent = state.settings.enterToSend ? "Enter to send · Shift + Enter for a new line" : "Enter for a new line";
+    el.count.textContent = `${el.input.value.length} / 4000`;
 }
 
 function render(state: Readonly<ZenvikClientState>): void {
     const connection = state.connection;
-
-    setStatusClass(el.connectionDot, connection);
-    setStatusClass(el.connectionPillDot, connection);
-    setStatusClass(el.settingsStatusDot, connection);
-
-    const label = connectionLabel(connection);
-
+    const label = connectionName(connection);
+    [el.connectionDot, el.connectionPillDot].forEach(node => node.className = `status-dot ${connection}`);
+    el.connectionPill.className = `connection-pill ${connection}`;
     el.connectionLabel.textContent = label;
     el.connectionText.textContent = label;
     el.settingsConnection.textContent = label;
@@ -529,362 +294,178 @@ function render(state: Readonly<ZenvikClientState>): void {
     el.username.textContent = username;
     el.avatar.textContent = username[0]?.toUpperCase() ?? "?";
 
+    const conversation = state.conversations.find(c => c.id === state.activeConversation);
+    el.title.textContent = conversation?.name ?? "Messages";
+    el.symbol.textContent = conversation ? "#" : "Z";
+    el.status.textContent = conversation ? `${conversation.messages.length} ${conversation.messages.length === 1 ? "message" : "messages"}` : "Choose a conversation to begin";
+
     renderConversationList(state);
-
-    const conversation = state.conversations.find(
-        item => item.id === state.activeConversation,
-    );
-
-    el.conversationTitle.textContent = conversation?.name ?? "Messages";
-    el.conversationSymbol.textContent = conversation ? "#" : "Z";
-
-    if (conversation) {
-        const count = conversation.messages.length;
-        el.conversationStatus.textContent =
-            `${count} message${count === 1 ? "" : "s"}`;
-    } else {
-        el.conversationStatus.textContent = "Select a conversation";
-    }
-
-    renderMessages(conversation);
+    renderMessages(state);
     updateComposer(state);
 
-    el.themeSetting.value = state.settings.theme;
-    el.enterSetting.checked = state.settings.enterToSend;
-    el.notificationSetting.checked = state.settings.notifications;
-
+    el.theme.value = state.settings.theme;
+    el.enter.checked = state.settings.enterToSend;
+    el.notifications.checked = state.settings.notifications;
     document.documentElement.dataset.theme = state.settings.theme;
 
-    if (state.error && state.error !== lastError) {
-        lastError = state.error;
+    if (state.error && state.error !== lastRenderedError) {
+        lastRenderedError = state.error;
         showToast(state.error);
+    } else if (!state.error) {
+        lastRenderedError = null;
     }
 
-    if (!state.error) {
-        lastError = null;
-    }
+    handleNewMessages(state);
+}
 
-    if (
-        state.connection === "connected" &&
-        previousConnection !== "connected"
-    ) {
-        showToast("Connected to the Zenvik server.");
-    }
-
-    previousConnection = state.connection;
-
-    const currentMessageIds = new Set<string>();
-
-    for (const item of state.conversations) {
-        for (const message of item.messages) {
-            currentMessageIds.add(message.id);
-        }
-    }
-
-    if (previousMessageIds.size > 0 && state.settings.notifications) {
-        for (const item of state.conversations) {
-            for (const message of item.messages) {
-                if (
-                    currentMessageIds.has(message.id) &&
-                    !previousMessageIds.has(message.id) &&
-                    message.author.id !== state.user?.id &&
-                    item.id !== state.activeConversation
-                ) {
-                    notifyNewMessage(item.name, message.author.username, message.content);
-                }
+async function handleNewMessages(state: Readonly<ZenvikClientState>): Promise<void> {
+    const current = new Map<string, number>();
+    let notification: { conversation: string; author: string; content: string } | null = null;
+    for (const conversation of state.conversations) {
+        for (const message of conversation.messages) {
+            current.set(message.id, message.timestamp);
+            if (!previousMessages.has(message.id) && state.user?.id !== message.author.id && conversation.id !== state.activeConversation) {
+                notification = { conversation: conversation.name, author: message.author.username, content: message.content };
             }
         }
     }
-
-    previousMessageIds = currentMessageIds;
-}
-
-async function notifyNewMessage(
-    conversationName: string,
-    author: string,
-    content: string,
-): Promise<void> {
-    if (!("Notification" in window)) {
-        return;
-    }
-
+    previousMessages = current;
+    if (!notification || !state.settings.notifications || !("Notification" in window)) return;
     if (Notification.permission === "default") {
-        try {
-            await Notification.requestPermission();
-        } catch {
-            return;
-        }
+        try { await Notification.requestPermission(); } catch { return; }
     }
-
     if (Notification.permission === "granted") {
-        new Notification(`${conversationName} · ${author}`, {
-            body: content.slice(0, 160),
-            silent: false,
-        });
-    }
-}
-
-async function updateNotificationPermission(): Promise<void> {
-    if (!el.notificationSetting.checked) {
-        return;
-    }
-
-    if (!("Notification" in window)) {
-        showToast("Notifications are not supported in this browser.");
-        return;
-    }
-
-    if (Notification.permission === "default") {
-        const permission = await Notification.requestPermission();
-
-        if (permission !== "granted") {
-            client.updateSettings({ notifications: false });
-            showToast("Notification permission was not granted.");
-        }
-    } else if (Notification.permission === "denied") {
-        client.updateSettings({ notifications: false });
-        showToast("Notifications are blocked by the browser.");
+        new Notification(`${notification.conversation} · ${notification.author}`, { body: notification.content.slice(0, 160), silent: false });
     }
 }
 
 function openModal(): void {
     el.modal.classList.remove("hidden");
-    el.conversationName.value = "";
-
-    requestAnimationFrame(() => {
-        el.conversationName.focus();
-    });
+    el.name.value = "";
+    requestAnimationFrame(() => el.name.focus());
 }
-
-function closeModal(): void {
-    el.modal.classList.add("hidden");
-}
+function closeModal(): void { el.modal.classList.add("hidden"); }
 
 function createConversation(): void {
-    const name = el.conversationName.value.trim();
-
-    if (!name) {
-        showToast("Give the conversation a name first.");
-        el.conversationName.focus();
-        return;
-    }
-
-    if (!client.createConversation(name)) {
-        return;
-    }
-
+    const name = el.name.value.trim();
+    if (!name) { showToast("Give the conversation a name."); el.name.focus(); return; }
+    if (!client.createConversation(name)) return;
     closeModal();
+    setPage("messages");
 }
 
-function updateCharacterCount(): void {
-    el.characterCount.textContent = `${el.input.value.length} / 4000`;
+async function copyServerAddress(): Promise<void> {
+    const value = el.serverUrl.textContent?.trim();
+    if (!value || value === "Loading…" || value === "Unavailable") { showToast("Server address is unavailable."); return; }
+    try {
+        await navigator.clipboard.writeText(value);
+        showToast("Server address copied.");
+    } catch { showToast("Could not copy the server address."); }
 }
 
-function resizeComposer(): void {
-    el.input.style.height = "auto";
-    el.input.style.height = `${Math.min(el.input.scrollHeight, 180)}px`;
+async function loadRuntimeInfo(): Promise<void> {
+    try {
+        const config = await client.getConfig();
+        el.serverUrl.textContent = config.websocketUrl;
+        if (window.zenvik?.platform) {
+            const runtime = await window.zenvik.platform();
+            el.runtime.textContent = `${runtime.platform} · ${runtime.arch} · Electron ${runtime.electron}`;
+        } else {
+            el.runtime.textContent = "Web client";
+        }
+    } catch {
+        el.serverUrl.textContent = "Unavailable";
+        el.runtime.textContent = "Runtime unavailable";
+    }
 }
 
 document.addEventListener("click", event => {
     const target = event.target;
-
-    if (!(target instanceof HTMLElement)) {
-        return;
-    }
+    if (!(target instanceof HTMLElement)) return;
 
     const pageButton = target.closest<HTMLButtonElement>("[data-page]");
-
-    if (pageButton) {
-        const page = pageButton.dataset.page;
-
-        if (page === "chat" || page === "settings") {
-            setPage(page);
-        }
-
+    if (pageButton?.dataset.page === "messages" || pageButton?.dataset.page === "settings") {
+        setPage(pageButton.dataset.page);
         return;
     }
 
-    const conversationButton =
-        target.closest<HTMLButtonElement>("[data-conversation]");
-
-    if (conversationButton?.dataset.conversation) {
-        client.selectConversation(conversationButton.dataset.conversation);
-        setPage("chat");
+    const conversation = target.closest<HTMLButtonElement>("[data-conversation]");
+    if (conversation?.dataset.conversation) {
+        client.selectConversation(conversation.dataset.conversation);
+        setPage("messages");
+        el.input.focus();
         return;
     }
 
-    if (
-        target.closest("#new-conversation") ||
-        target.closest("#welcome-new")
-    ) {
-        openModal();
-        return;
-    }
-
-    if (target.closest("#cancel-modal") || target.classList.contains("modal-backdrop")) {
-        closeModal();
-        return;
-    }
-
-    if (target.closest("#create-modal")) {
-        createConversation();
-        return;
-    }
-
-    if (target.closest("#disconnect")) {
-        client.disconnect();
-        return;
-    }
-
-    if (target.closest("#reconnect")) {
-        const button = target.closest<HTMLButtonElement>("#reconnect");
-
-        if (button) {
-            button.disabled = true;
-            button.textContent = "Connecting…";
-
-            void client.connect()
-                .catch(error => {
-                    showToast(
-                        error instanceof Error
-                            ? error.message
-                            : String(error),
-                    );
-                })
-                .finally(() => {
-                    button.disabled = false;
-                    button.textContent = "Reconnect";
-                });
-        }
-
-        return;
-    }
-
+    if (target.closest("#new-conversation") || target.closest("#welcome-new")) { openModal(); return; }
+    if (target.closest("#cancel-modal") || target.closest("#close-modal") || target.classList.contains("modal-backdrop")) { closeModal(); return; }
+    if (target.closest("#create-modal")) { createConversation(); return; }
+    if (target.closest("#disconnect")) { client.disconnect(); return; }
+    if (target.closest("#reconnect")) { void client.connect().catch(error => showToast(error instanceof Error ? error.message : String(error))); return; }
     if (target.closest("#check-server")) {
-        const button = target.closest<HTMLButtonElement>("#check-server");
-
-        if (!button) {
-            return;
-        }
-
+        const button = $<HTMLButtonElement>("#check-server");
         button.disabled = true;
-        button.textContent = "Checking…";
-
-        void client.checkBackend()
-            .then(ok => {
-                showToast(
-                    ok
-                        ? "Server is reachable."
-                        : "The backend is not reachable.",
-                );
-            })
-            .finally(() => {
-                button.disabled = false;
-                button.textContent = "Check server";
-            });
-
+        void client.checkBackend().then(ok => showToast(ok ? "Server is reachable." : "The server is not reachable.")).finally(() => button.disabled = false);
         return;
     }
+    if (target.closest("#copy-server")) { void copyServerAddress(); return; }
 });
+
+el.search.addEventListener("input", () => { searchQuery = el.search.value; render(client.getState()); });
 
 el.composer.addEventListener("submit", event => {
     event.preventDefault();
-
-    const content = el.input.value.trim();
-
-    if (!content) {
-        return;
-    }
-
-    if (client.sendMessage(content)) {
+    const value = el.input.value.trim();
+    if (!value) return;
+    if (client.sendMessage(value)) {
         el.input.value = "";
-        updateCharacterCount();
-        resizeComposer();
-        el.input.focus();
+        el.input.style.height = "auto";
+        updateComposer(client.getState());
     }
 });
 
 el.input.addEventListener("input", () => {
-    updateCharacterCount();
-    resizeComposer();
+    el.input.style.height = "auto";
+    el.input.style.height = `${Math.min(el.input.scrollHeight, 180)}px`;
+    updateComposer(client.getState());
 });
 
 el.input.addEventListener("keydown", event => {
-    if (
-        event.key === "Enter" &&
-        !event.shiftKey &&
-        client.getState().settings.enterToSend
-    ) {
+    if (event.key === "Enter" && !event.shiftKey && client.getState().settings.enterToSend) {
         event.preventDefault();
         el.composer.requestSubmit();
     }
 });
 
-el.conversationName.addEventListener("keydown", event => {
-    if (event.key === "Enter") {
-        event.preventDefault();
-        createConversation();
-    }
+el.search.addEventListener("keydown", event => {
+    if (event.key === "Escape") { el.search.value = ""; searchQuery = ""; render(client.getState()); el.search.blur(); }
+});
 
-    if (event.key === "Escape") {
+el.theme.addEventListener("change", () => {
+    const value = el.theme.value;
+    if (value === "dark" || value === "light") client.updateSettings({ theme: value });
+});
+el.enter.addEventListener("change", () => client.updateSettings({ enterToSend: el.enter.checked }));
+el.notifications.addEventListener("change", () => client.updateSettings({ notifications: el.notifications.checked }));
+
+el.name.addEventListener("keydown", event => {
+    if (event.key === "Enter") { event.preventDefault(); createConversation(); }
+    if (event.key === "Escape") closeModal();
+});
+
+document.addEventListener("keydown", event => {
+    const typing = event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement;
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        el.search.focus();
+    } else if (event.key === "Escape" && !typing && !el.modal.classList.contains("hidden")) {
         closeModal();
     }
 });
 
-el.themeSetting.addEventListener("change", () => {
-    const value = el.themeSetting.value;
-
-    if (value === "dark" || value === "light") {
-        client.updateSettings({ theme: value });
-    }
-});
-
-el.enterSetting.addEventListener("change", () => {
-    client.updateSettings({
-        enterToSend: el.enterSetting.checked,
-    });
-});
-
-el.notificationSetting.addEventListener("change", () => {
-    client.updateSettings({
-        notifications: el.notificationSetting.checked,
-    });
-
-    void updateNotificationPermission();
-});
-
-window.addEventListener("beforeunload", () => {
-    // WebSocket cleanup is handled by the browser/Electron process.
-});
-
 client.subscribe(render);
-
+void loadRuntimeInfo();
 void (async () => {
-    try {
-        const [config, platform] = await Promise.all([
-            client.getConfig(),
-            window.zenvik?.platform?.() ?? Promise.resolve(null),
-        ]);
-
-        el.serverUrl.textContent = config.websocketUrl;
-
-        if (platform) {
-            el.runtimeInfo.textContent =
-                `${platform.platform} · ${platform.arch} · Electron ${platform.electron}`;
-        } else {
-            el.runtimeInfo.textContent =
-                `Browser · ${window.location.hostname || "localhost"}`;
-        }
-    } catch {
-        el.serverUrl.textContent = "Unavailable";
-        el.runtimeInfo.textContent = "Runtime information unavailable";
-    }
+    try { await client.start(); }
+    catch (error) { showToast(error instanceof Error ? error.message : "Unable to connect to Zenvik."); }
 })();
-
-void client.start().catch(error => {
-    showToast(
-        error instanceof Error
-            ? error.message
-            : "Unable to connect to Zenvik.",
-    );
-});

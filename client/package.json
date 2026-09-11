@@ -1,29 +1,29 @@
 {
-  "name": "zenvik-client",
-  "version": "1.0.0",
-  "private": true,
-  "description": "Zenvik desktop client",
-  "main": "dist/main.js",
-  "scripts": {
-    "build": "tsc -p tsconfig.json && node scripts-copy-assets.mjs",
-    "start": "electron dist/main.js",
-    "dev": "bun run build && electron dist/main.js",
-    "web:build": "bun run build",
-    "web": "bun run web:build && node scripts-web-server.mjs",
-    "dev:web": "bun run web"
-  },
-  "keywords": [
-    "zenvik",
-    "client",
-    "electron"
-  ],
-  "license": "ISC",
-  "type": "module",
-  "devDependencies": {
-    "@types/bun": "latest",
-    "@types/node": "^26.5.0",
-    "electron": "^44.3.0",
-    "tsx": "^4.23.13",
-    "typescript": "^7.0.2"
-  }
+    "name": "zenvik-client",
+    "version": "1.1.0",
+    "private": true,
+    "description": "Zenvik desktop and web messaging client",
+    "main": "dist/main.js",
+    "scripts": {
+        "build": "tsc -p tsconfig.json && node scripts-copy-assets.mjs",
+        "start": "electron dist/main.js",
+        "dev": "bun run build && electron dist/main.js",
+        "web:build": "bun run build",
+        "web": "bun run web:build && node scripts-web-server.mjs",
+        "dev:web": "bun run web"
+    },
+    "keywords": [
+        "zenvik",
+        "client",
+        "electron"
+    ],
+    "license": "ISC",
+    "type": "module",
+    "devDependencies": {
+        "@types/bun": "latest",
+        "@types/node": "^26.5.0",
+        "electron": "^44.3.0",
+        "tsx": "^4.23.13",
+        "typescript": "^7.0.2"
+    }
 }
