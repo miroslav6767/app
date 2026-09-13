@@ -1,3 +1,141 @@
+/* =========================================================
+   ZENVIK INTRO
+   ========================================================= */
+
+.zenvik-intro {
+    position: fixed;
+    inset: 0;
+    z-index: 99999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    background:
+        radial-gradient(
+            circle at center,
+            rgba(119, 120, 247, 0.08),
+            transparent 38%
+        ),
+        #06080c;
+}
+
+.intro-stage {
+    position: relative;
+    width: min(760px, 90vw);
+    height: min(420px, 70vh);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.intro-logo {
+    position: absolute;
+    width: 150px;
+    height: 150px;
+    object-fit: contain;
+    user-select: none;
+    pointer-events: none;
+    will-change: transform, opacity;
+    filter:
+        drop-shadow(0 0 18px rgba(119, 120, 247, 0.18))
+        drop-shadow(0 14px 35px rgba(0, 0, 0, 0.55));
+}
+
+#intro-zenvik,
+#intro-security {
+    transform-origin: center;
+}
+
+#intro-impact {
+    position: absolute;
+    width: 46px;
+    height: 46px;
+    border: 1px solid rgba(255, 255, 255, 0.75);
+    background: rgba(255, 255, 255, 0.15);
+    box-shadow:
+        0 0 25px rgba(255, 255, 255, 0.35),
+        0 0 70px rgba(119, 120, 247, 0.25);
+    pointer-events: none;
+}
+
+#intro-final {
+    position: absolute;
+    display: grid;
+    place-items: center;
+    width: 180px;
+    height: 180px;
+    pointer-events: none;
+}
+
+#intro-final .intro-logo {
+    position: relative;
+    width: 180px;
+    height: 180px;
+}
+
+/* Shockwave */
+
+.intro-shockwave {
+    position: absolute;
+    width: 90px;
+    height: 90px;
+    border: 2px solid rgba(255, 255, 255, 0.65);
+    border-radius: 50%;
+    pointer-events: none;
+    box-shadow:
+        0 0 25px rgba(119, 120, 247, 0.35),
+        inset 0 0 20px rgba(119, 120, 247, 0.12);
+}
+
+/* Flash */
+
+.intro-flash {
+    position: absolute;
+    inset: -30%;
+    pointer-events: none;
+    background: radial-gradient(
+        circle at center,
+        rgba(255, 255, 255, 0.9) 0%,
+        rgba(255, 255, 255, 0.2) 14%,
+        transparent 42%
+    );
+    mix-blend-mode: screen;
+}
+
+/* Particles */
+
+.intro-particles {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}
+
+.intro-particle {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: rgba(220, 224, 255, 0.95);
+    box-shadow:
+        0 0 8px rgba(119, 120, 247, 0.8),
+        0 0 18px rgba(119, 120, 247, 0.35);
+    transform: translate(-50%, -50%);
+}
+
+/* Prevent accidental interaction during intro */
+
+.zenvik-intro * {
+    pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .zenvik-intro {
+        display: none !important;
+    }
+}
+
 :root {
     color-scheme: dark;
     font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;

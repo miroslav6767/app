@@ -1733,16 +1733,31 @@ client.subscribe(render);
 
 void loadRuntimeInfo();
 
-void playZenvikIntro();
+/*
+ * Start the intro independently from the backend.
+ *
+ * The UI and intro must never depend on the server
+ * being online.
+ */
+void playZenvikIntro().catch(error => {
+    console.error("Zenvik intro failed:", error);
 
-void (async () => {
-    try {
-        await client.start();
-    } catch (error) {
-        showToast(
-            error instanceof Error
-                ? error.message
-                : "Unable to connect to Zenvik.",
-        );
+    // Never leave the application stuck behind
+    // the intro if the animation itself fails.
+    const intro = document.querySelector<HTMLElement>(
+        "#zenvik-intro",
+    );
+
+    if (intro) {
+        intro.style.opacity = "0";
+        intro.style.display = "none";
     }
-})();
+});
+
+/*
+ * Start the backend connection in the background.
+ *
+ * This intentionally happens independently from
+ * the intro animation.
+ */
+client.start();
